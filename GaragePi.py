@@ -5,6 +5,7 @@ import threading
 import RPi.GPIO as GPIO
 from functools import wraps
 from MQTTComms import MQTTComms
+import Adafruit_DHT
 
 
 LOG_FILE_PATH = "garagePi.log"
@@ -24,7 +25,7 @@ PIR = 'hass/pir/state'              #PIR sensor topic
 SUBSCRIPTION_TOPICS = [CMD_1,CMD_2,STATE_1,STATE_2,TEMP,HUMDITY,PIR]
 
 #GPIO CONSTANTS
-
+DHT22_DATA = 27                 #data pin for DHT22 Temp/Humidity sensor
 
 def message_callback(callback):
     """
@@ -105,7 +106,30 @@ def setup_gpio():
     GPIO.setmode(GPIO.BCM)
     GPIO.setup(LED,GPIO.OUT)
     GPIO.setup(DOOR_INPUT, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
-            
+    
+def read_dht22(client,poll_time=60):
+    """
+    Read the temperature and humidty and publish results to the appropriate topics
+    
+    Args:
+        client (obj): MQTT client object
+        poll_time (int): Number of seconds between readings
+    """
+    sensor = Adafruit_DHT.DHT22
+    while 1:
+        try:
+            humidity, temperature = Adafruit_DHT.read_retry(sensor, pin, DHT22_DATA)
+            if temperature is not None and humidity is not None:
+                temperature = temperature * (9/5.0) + 32
+                #publish to mqtt
+                client.publish(TEMP,"%.1f"%temperature)
+                client.publish(HUMDITY,"%.1f"%humidity)
+
+        except Exception as e:
+            logger.error("Caught exception: %s"%e)
+
+        time.sleep(poll_time)
+        
 def cleanup():
     """
     Cleanup GPIO
