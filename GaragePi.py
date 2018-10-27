@@ -63,42 +63,7 @@ DOOR_OPEN       = 0
 DOOR_CLOSED     = 1
 
 
-class RGBLed():
-    """
-    Class to handle controlling an RGB LED
-    """
-    def __init__(self,r,g,b):
-        """
-        Args:
-            r (GPIO.PWM): GPIO.PWM object tied to red LED
-            g (GPIO.PWM): GPIO.PWM object tied to green LED
-            b (GPIO.PWM): GPIO.PWM object tied to blue LED
-        """        
-        self.r = r
-        self.g = g
-        self.b = b
-        
-        #init LED to be off
-        self.r.start(0)
-        self.g.start(0)
-        self.b.start(0)
 
-    def set_color(self,color_code):
-        """
-        Set the color of the LED
-        
-        Args:
-            color_code (tuple): desired color in the form (red,green,blue) and in the range 0-255 per component
-        """
-        #scale the RGB codes to be 0-100
-        R = (color_code[0] / 255) * 100
-        G = (color_code[1] / 255) * 100
-        B = (color_code[2] / 255) * 100
-        #update the duty cycles for each leg of the LED
-        self.r.ChangeDutyCycle(R)
-        self.g.ChangeDutyCycle(G)
-        self.b.ChangeDutyCycle(B)
-        
 def message_callback(callback):
     """
     Decorator function for mqtt message callbacks
@@ -120,7 +85,7 @@ def init_logger(fullpath):
         fullpath (str): full path to the log file 
     """
     logging.basicConfig(level=logging.DEBUG,
-                        format='%(asctime)s %(name)-12s %(levelname)-8s %(message)s',
+                        format='%(asctime)s %(threadName)-10s %(name)-12s %(levelname)-8s %(message)s',
                         datefmt='%m-%d-%y %H:%M:%S',
                         filename=fullpath,
                         filemode='w')
@@ -139,7 +104,7 @@ def init_logger(fullpath):
     
 def import_credentials():
     """
-    reads a text file with the stored MQTT credentials are returns the username and password
+    reads a text file with the stored MQTT credentials and returns the username and password
     Text file format is:
     USERNAME=ThisIsAUserName
     PASSWORD=ThisIsAPassword
@@ -190,46 +155,6 @@ def setup_gpio():
     GPIO.setup(DOOR2_STATE, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
     GPIO.setup(PIR_STATE, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
     GPIO.setup(DHT22_DATA, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
-    
-    
-def toggle_garage_opener(door):
-    """
-    Function to toggle either door 1 or door 2 button
-    
-    Args:
-        door (int) Door 1 (1) Door 2 (2)
-    """
-    if door == DOOR1:
-        pin = DOOR1_CTRL
-    elif door == DOOR2:
-        pin = DOOR2_CTRL
-    else:
-        raise Exception("Invalid door argument (%d)"%door)
-        
-    GPIO.output(pin,GPIO.HIGH)
-    time.sleep(0.5)
-    GPIO.output(pin,GPIO.LOW)
-    
-def get_door_state(door):
-    """
-    Function to get the state of the door
-    
-    Args:
-        door (int) Door 1 (1) Door 2 (2)
-        
-    Returns:
-        state (int): 0 (open) 1 (closed)
-    """
-    if door == DOOR1:
-        pin = DOOR1_CTRL
-    elif door == DOOR2:
-        pin = DOOR2_CTRL
-    else:
-        raise Exception("Invalid door argument (%d)"%door)
-        
-    return GPIO.input(pin)
-    
-    
     
 def read_dht22(client,poll_time=60):
     """
@@ -289,8 +214,101 @@ def cover_cmd_callback(client,userdata,message):
     else:
         #unrecognized command
         logger.debug("Unrecognized command (%s) on topic: %s"%(message.payload,message.topic))
- 
+
+        
+class GarageDoor():
+    """
+    Class that models a physical garage door bay
+    """
+    def __init__(self, door, ctrl_pin, state_pin, client):
+        """
+        Constructor for GarageDoor
+        
+        Args:
+            door (int): Door number
+            ctrl_pin (int): GPIO pin number that controls door
+            state_pin (int): GPIO pin number that monitors the state of the door
+            client (MQTTComms): MQTT comms object
+        """
+        self.door = door
+        self.ctrl_pin = ctrl_pin
+        self.state_pin = state_pin
+        self.logger = logging.getLogger("DOOR%s"%door)
+        
+        self.logger.debug("Initializing Garage Door")
+        
+        self.state = self.get_state()
+        
+    def get_state(self):
+        """
+        This method reads the door state sensor and returns the current state
+        
+        Returns:
+            state (bool): True - Close, False - Open
+        """
+        self.state = GPIO.input(self.state_pin)
+        state_str = 'CLOSED' if self.state else: 'OPEN'
+        self.logger.debug('Door State: %s'%state_str)
+        return self.state
+        
+    def push_button(self):
+        """
+        Method to toggle the garage door button.  This will open or close the door depending on the 
+        current state of the door.
+        """
+        self.logger.debug("push_button() called")
+        GPIO.output(self.ctrl_pin,GPIO.HIGH)
+        time.sleep(0.5)
+        GPIO.output(self.ctrl_pin,GPIO.LOW)
     
+    @message_callback
+    def process_cmd(self,client,userdata,message):    
+        """
+        Process commands
+        """
+        if message == CMD_OPEN:
+            self.push_button()
+        elif message == CMD_CLOSE:
+            self.push_button()
+        else:
+            self.logger.debug('Invalid command: %s'%message)
+        
+class RGBLed():
+    """
+    Class to handle controlling an RGB LED
+    """
+    def __init__(self,r,g,b):
+        """
+        Args:
+            r (GPIO.PWM): GPIO.PWM object tied to red LED
+            g (GPIO.PWM): GPIO.PWM object tied to green LED
+            b (GPIO.PWM): GPIO.PWM object tied to blue LED
+        """        
+        self.r = r
+        self.g = g
+        self.b = b
+        
+        #init LED to be off
+        self.r.start(0)
+        self.g.start(0)
+        self.b.start(0)
+
+    def set_color(self,color_code):
+        """
+        Set the color of the LED
+        
+        Args:
+            color_code (tuple): desired color in the form (red,green,blue) and in the range 0-255 per component
+        """
+        #scale the RGB codes to be 0-100
+        R = (color_code[0] / 255) * 100
+        G = (color_code[1] / 255) * 100
+        B = (color_code[2] / 255) * 100
+        #update the duty cycles for each leg of the LED
+        self.r.ChangeDutyCycle(R)
+        self.g.ChangeDutyCycle(G)
+        self.b.ChangeDutyCycle(B)
+        
     
 #### Main ####
 init_logger(LOG_FILE_PATH)      #initialize the logging object
