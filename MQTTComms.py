@@ -10,10 +10,24 @@ CONNECT_RESPONSE = {0: 'Connection successful',
                     3: 'Connection refused - server unavailable',
                     4: 'Connection refused - bad username or password',
                     5: 'Connection refused - not authorised',
-                   }
+                    }
 
-                   
-class MQTTComms():
+_LOGGER = logging.getLogger("MQTT_Callback")
+
+def message_callback(callback):
+    """
+    Decorator function for mqtt message callbacks
+    """
+    @wraps(callback)    #update attribute data for decorator
+    def message_handler(client,userdata,message):
+        #decode and log the message and return the payload values
+        message.payload = message.payload.decode("utf-8")
+        _LOGGER.debug('Received Message: %s (%s)'%(message.payload,message.topic))
+        return callback(client,userdata,message)
+    return message_handler
+
+
+class MQTTComms:
     """
     General class to encapsulate MQTT communication
     This class uses re-entrant locks to ensure thread safety on publish events
@@ -55,11 +69,9 @@ class MQTTComms():
         
         #register call_backs
         self.client.on_log = self._on_log_callback
-        self.client.on_message = self._on_message_callback
+        # self.client.on_message = self._on_message_callback
         self.client.on_connect = self._on_connect_callback
-        
 
-    
     def connect(self):
         """
         Connect the MQTT client
@@ -70,7 +82,16 @@ class MQTTComms():
         #subscribe to topics
         for topic in self.topics:
             self.client.subscribe(topic)        
-        
+
+    def subscribe(self, topic):
+        """
+        Subscribe to an MQTT topic
+
+        Args:
+            topic (str): MQTT topic string
+        """
+        self.client.subscribe(topic)
+
     def close(self):
         """
         Close MQTT client connection

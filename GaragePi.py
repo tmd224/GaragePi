@@ -63,7 +63,6 @@ DOOR_OPEN       = 0
 DOOR_CLOSED     = 1
 
 
-
 def message_callback(callback):
     """
     Decorator function for mqtt message callbacks
@@ -148,13 +147,13 @@ def setup_gpio():
     GPIO.setup(LED_GREEN, GPIO.OUT)
     GPIO.setup(LED_BLUE, GPIO.OUT)
     
-    #inputs
+    # inputs
     GPIO.setup(DOOR1_STATE, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
     GPIO.setup(DOOR2_STATE, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
     GPIO.setup(PIR_STATE, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
     GPIO.setup(DHT22_DATA, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
     
-def read_dht22(client,poll_time=60):
+def read_dht22(client, poll_time=60):
     """
     Read the temperature and humidity and publish results to the appropriate topics
     
@@ -215,62 +214,6 @@ def cover_cmd_callback(client,userdata,message):
         logger.debug("Unrecognized command (%s) on topic: %s"%(message.payload,message.topic))
 
         
-class GarageDoor:
-    """
-    Class that models a physical garage door bay
-    """
-    def __init__(self, door, ctrl_pin, state_pin, client):
-        """
-        Constructor for GarageDoor
-        
-        Args:
-            door (int): Door number
-            ctrl_pin (int): GPIO pin number that controls door
-            state_pin (int): GPIO pin number that monitors the state of the door
-            client (MQTTComms): MQTT comms object
-        """
-        self.door = door
-        self.ctrl_pin = ctrl_pin
-        self.state_pin = state_pin
-        self.logger = logging.getLogger("DOOR%s"%door)
-        
-        self.logger.debug("Initializing Garage Door")
-        
-        self.state = self.get_state()
-        
-    def get_state(self):
-        """
-        This method reads the door state sensor and returns the current state
-        
-        Returns:
-            state (bool): True - Close, False - Open
-        """
-        self.state = GPIO.input(self.state_pin)
-        state_str = 'CLOSED' if self.state else 'OPEN'
-        self.logger.debug('Door State: %s'%state_str)
-        return self.state
-        
-    def push_button(self):
-        """
-        Method to toggle the garage door button.  This will open or close the door depending on the 
-        current state of the door.
-        """
-        self.logger.debug("push_button() called")
-        GPIO.output(self.ctrl_pin,GPIO.HIGH)
-        time.sleep(0.5)
-        GPIO.output(self.ctrl_pin,GPIO.LOW)
-    
-    @message_callback
-    def process_cmd(self,client,userdata,message):    
-        """
-        Process commands
-        """
-        if message == CMD_OPEN:
-            self.push_button()
-        elif message == CMD_CLOSE:
-            self.push_button()
-        else:
-            self.logger.debug('Invalid command: %s'%message)
 
     
 #### Main ####

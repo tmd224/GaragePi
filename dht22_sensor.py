@@ -17,26 +17,46 @@ class dht_sensor:
 
         """
         self.pin = data_pin
-        self.client = client
+        self._client = client
 
         self._temp_topic = temp_topic
         self._hum_topic = hum_topic
         self._temp = None
         self._humidity = None
 
+        self._last_temp = None
+        self._last_humidity = None
+
         GPIO.setup(self.pin, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)  # set data pin to be an input
         self._sensor = Adafruit_DHT.DHT22
         self.logger = logging.getLogger(__class__.__name__)
 
-        #register MQTT message callbacks
-        self.client.add_message_callback(self._temp_topic, self.update_temp)
-        self.client.add_message_callback(self._hum_topic, self.update_humidity)
+        self._client.subscribe(self._temp_topic)
+        self._client.subscribe(self._hum_topic)
 
-    def update_temp(self):
-        return self._temp
+    def update_temp(self, temp):
+        """
+        Update the temp topic with the latest temp value.
 
-    def update_humidity(self):
-        return self._humidity
+        Args:
+            temp (float): Latest temperature value from sensor
+        """
+        self._temp = temp
+        if self._temp != self._last_temp:
+            self._last_temp = self._temp    # update last temp with the latest
+            self._client.publish(self._temp_topic, self._temp)
+
+    def update_humidity(self, humidity):
+        """
+        Update the Humidity topic with the latest humidity value
+
+        Args:
+            humidity (float): Latest humidity value from the sensor
+        """
+        self._humidity = humidity
+        if self._humidity != self._last_humidity:
+            self._last_humidity = self._humidity
+            self._client.publish(self._hum_topic, self._humidity)
 
     def start_polling(self, poll_time=60):
         """
@@ -50,10 +70,10 @@ class dht_sensor:
             try:
                 humidity, temperature = Adafruit_DHT.read_retry(self._sensor, self.pin, 1)
                 if temperature is not None and humidity is not None:
-                    self._temp = temperature * (9 / 5.0) + 32
-                    self._humidity = humidity
-
-                    self.logger.debug("Temp: %.1f F | Humidity: %.1f %", self._temp, self._humidity)
+                    temperature = temperature * (9 / 5.0) + 32
+                    self.logger.debug("Temp: %.1f F | Humidity: %.1f %", temperature, humidity)
+                    self.update_temp(temperature)
+                    self.update_humidity(humidity)
 
             except Exception as e:
                 self.logger.error("Caught exception: %s" % e)
