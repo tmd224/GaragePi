@@ -130,10 +130,8 @@ def import_credentials():
     except Exception as e: 
         logger.error("Error importing credentials file: %s"%e)
     finally:
-        try:
+        if f:
             f.close()
-        except:
-            pass 
 
   
 def setup_gpio():
@@ -158,7 +156,7 @@ def setup_gpio():
     
 def read_dht22(client,poll_time=60):
     """
-    Read the temperature and humidty and publish results to the appropriate topics
+    Read the temperature and humidity and publish results to the appropriate topics
     
     Args:
         client (obj): MQTT client object
@@ -167,7 +165,7 @@ def read_dht22(client,poll_time=60):
     sensor = Adafruit_DHT.DHT22
     while True:
         try:
-            humidity, temperature = Adafruit_DHT.read_retry(sensor, pin, DHT22_DATA)
+            humidity, temperature = Adafruit_DHT.read_retry(sensor, DHT22_DATA, 1)
             if temperature is not None and humidity is not None:
                 temperature = temperature * (9/5.0) + 32
                 #publish to mqtt
@@ -211,12 +209,13 @@ def cover_cmd_callback(client,userdata,message):
         
     elif message.payload == CMD_STOP:
         #stop garage door
+        pass
     else:
         #unrecognized command
         logger.debug("Unrecognized command (%s) on topic: %s"%(message.payload,message.topic))
 
         
-class GarageDoor():
+class GarageDoor:
     """
     Class that models a physical garage door bay
     """
@@ -247,7 +246,7 @@ class GarageDoor():
             state (bool): True - Close, False - Open
         """
         self.state = GPIO.input(self.state_pin)
-        state_str = 'CLOSED' if self.state else: 'OPEN'
+        state_str = 'CLOSED' if self.state else 'OPEN'
         self.logger.debug('Door State: %s'%state_str)
         return self.state
         
@@ -272,43 +271,7 @@ class GarageDoor():
             self.push_button()
         else:
             self.logger.debug('Invalid command: %s'%message)
-        
-class RGBLed():
-    """
-    Class to handle controlling an RGB LED
-    """
-    def __init__(self,r,g,b):
-        """
-        Args:
-            r (GPIO.PWM): GPIO.PWM object tied to red LED
-            g (GPIO.PWM): GPIO.PWM object tied to green LED
-            b (GPIO.PWM): GPIO.PWM object tied to blue LED
-        """        
-        self.r = r
-        self.g = g
-        self.b = b
-        
-        #init LED to be off
-        self.r.start(0)
-        self.g.start(0)
-        self.b.start(0)
 
-    def set_color(self,color_code):
-        """
-        Set the color of the LED
-        
-        Args:
-            color_code (tuple): desired color in the form (red,green,blue) and in the range 0-255 per component
-        """
-        #scale the RGB codes to be 0-100
-        R = (color_code[0] / 255) * 100
-        G = (color_code[1] / 255) * 100
-        B = (color_code[2] / 255) * 100
-        #update the duty cycles for each leg of the LED
-        self.r.ChangeDutyCycle(R)
-        self.g.ChangeDutyCycle(G)
-        self.b.ChangeDutyCycle(B)
-        
     
 #### Main ####
 init_logger(LOG_FILE_PATH)      #initialize the logging object
