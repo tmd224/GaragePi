@@ -1,10 +1,10 @@
 import logging
 
 LOG_LEVEL = logging.DEBUG
-CONSOLE_LEVEL = logging.INFO
+CONSOLE_LEVEL = logging.DEBUG
 
 
-def init_logger(fullpath):
+def init_logger(fullpath, console_level=CONSOLE_LEVEL, log_level=LOG_LEVEL):
     """
     Setup the logger object
 
@@ -19,7 +19,7 @@ def init_logger(fullpath):
 
     # define a Handler which writes INFO messages or higher to the sys.stderr
     console = logging.StreamHandler()
-    console.setLevel(CONSOLE_LEVEL)
+    console.setLevel(console_level)
     # set a format which is simpler for console use
     formatter = logging.Formatter('%(name)-12s: %(levelname)-8s %(message)s')
     # tell the handler to use this format

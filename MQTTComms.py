@@ -3,6 +3,7 @@ import time
 import logging
 import threading
 import paho.mqtt.client as mqtt
+from functools import wraps
 
 CONNECT_RESPONSE = {0: 'Connection successful',
                     1: 'Connection refused - incorrect protocol version',
@@ -19,11 +20,11 @@ def message_callback(callback):
     Decorator function for mqtt message callbacks
     """
     @wraps(callback)    #update attribute data for decorator
-    def message_handler(client,userdata,message):
+    def message_handler(inst,client,userdata,message):
         #decode and log the message and return the payload values
         message.payload = message.payload.decode("utf-8")
         _LOGGER.debug('Received Message: %s (%s)'%(message.payload,message.topic))
-        return callback(client,userdata,message)
+        return callback(inst,client,userdata,message)
     return message_handler
 
 
@@ -56,8 +57,10 @@ class MQTTComms:
         self.topics = topics
         self._username = username
         self._password = password
+        self._connected = False
         
-        self._message_callback = kwargs.pop('message_callback')
+        self.logger.info("Initialzing MQTT Client")
+        self._message_callback = kwargs.pop('message_callback', None)
         #Argument checking
         if broker is None or type(broker) != type(str()):
             ErrorString = "broker is None type, a valid broker in string format must be provided"
@@ -76,11 +79,13 @@ class MQTTComms:
         """
         Connect the MQTT client
         """
-        self.client.connect(self.broker)
+        self.logger.info("Connecting to broker: %s"%self.broker)
+        status = self.client.connect(self.broker)
         self.client.loop_start()
         
         #subscribe to topics
         for topic in self.topics:
+            self.logger.debug("Suscribing to topic: %s"%topic)
             self.client.subscribe(topic)        
 
     def subscribe(self, topic):
@@ -117,9 +122,14 @@ class MQTTComms:
             topic (str): topic to publish to
             msg (int,str): msg to publish
         """
-        self._get_mutex()
-        self.client.publish(topic,msg)
-        
+        #self.logger.debug("Attempting to publish")
+        if self._connected:
+            self._get_mutex()
+            self.logger.debug("Publish {%s: %s}"%(topic,msg))
+            self.client.publish(topic,msg)
+            self._release_lock()
+        else:
+            self.logger.debug("Broker not connected - published message not sent {%s: %s}"%(topic,msg))
     def _get_mutex(self):
         """
         Blocking method to wait for the thread lock to clear.  Keeps track of
@@ -138,7 +148,10 @@ class MQTTComms:
                 lock_status = self.lock.acquire(0)
             
             self.logger.debug('mutex acquired after %d attempts (%.2f sec)'%(attempts,attempts*wait_time))
-            
+    
+    def _release_lock(self):  
+        self.lock.release()
+        
     def _on_log_callback(self, client, userdata, level, buf):
         """
         logging callback
@@ -154,7 +167,8 @@ class MQTTComms:
             self.client.bad_connection_flag=True
         else:
             self.logger.info("MQTT Client Connection Response: %s (%d)"%(CONNECT_RESPONSE[rc],rc))
-            self.client.connected_flag=True #Flag to indicate success        
+            self.client.connected_flag=True #Flag to indicate success  
+            self._connected = True
            
     def _on_message_callback(self, client,userdata,message):
         """

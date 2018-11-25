@@ -14,10 +14,9 @@ class StoppableThread(threading.Thread):
             args=args, kwargs=kwargs)
         self._stop_event = threading.Event()
 
-
-        print(self.target)
     def stop(self):
         self._stop_event.set()
+        print("Thread stopped")
 
     def join(self, *args, **kwargs):
         self.stop()
@@ -37,9 +36,7 @@ class DroneThread(StoppableThread):
                  args=args, kwargs=kwargs)
         
     def run(self):
-        print("Calling run method")
         if self.target:
-            print("Target is not None")
             while not self._stop_event.is_set():
                 self.target(*self.args, **self.kwargs)   # run the target function
                 time.sleep(self._loopdelay)

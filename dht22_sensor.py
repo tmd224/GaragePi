@@ -29,7 +29,7 @@ class dht_sensor:
 
         GPIO.setup(self.pin, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)  # set data pin to be an input
         self._sensor = Adafruit_DHT.DHT22
-        self.logger = logging.getLogger(__class__.__name__)
+        self.logger = logging.getLogger(self.__class__.__name__)
 
         self._client.subscribe(self._temp_topic)
         self._client.subscribe(self._hum_topic)
@@ -41,7 +41,7 @@ class dht_sensor:
         Args:
             temp (float): Latest temperature value from sensor
         """
-        self._temp = temp
+        self._temp = round(temp, 1)
         if self._temp != self._last_temp:
             self._last_temp = self._temp    # update last temp with the latest
             self._client.publish(self._temp_topic, self._temp)
@@ -53,12 +53,13 @@ class dht_sensor:
         Args:
             humidity (float): Latest humidity value from the sensor
         """
-        self._humidity = humidity
+        self._humidity = round(humidity, 1)
         if self._humidity != self._last_humidity:
             self._last_humidity = self._humidity
             self._client.publish(self._hum_topic, self._humidity)
 
-    def start_polling(self, poll_time=60):
+    #def start_polling(self, poll_time=60):
+    def read_sensor(self):
         """
         Get a new reading from the sensor.  This function is meant to be run on a thread.
 
@@ -66,16 +67,18 @@ class dht_sensor:
             poll_time (int): Number of seconds between readings
         """
 
-        while True:
-            try:
-                humidity, temperature = Adafruit_DHT.read_retry(self._sensor, self.pin, 1)
-                if temperature is not None and humidity is not None:
-                    temperature = temperature * (9 / 5.0) + 32
-                    self.logger.debug("Temp: %.1f F | Humidity: %.1f %", temperature, humidity)
-                    self.update_temp(temperature)
-                    self.update_humidity(humidity)
+        #while True:
+        try:
+            humidity, temperature = Adafruit_DHT.read_retry(self._sensor, self.pin, 1)
+            if temperature is not None and humidity is not None:
+                temperature = temperature * (9 / 5.0) + 32
+                self.logger.debug("Temp: %.1f F | Humidity: %.1f" %(temperature,humidity))
+                self.update_temp(temperature)
+                self.update_humidity(humidity)
+            else:
+                self.logger.debug("Unable to get sensor reading")
+                
+        except Exception as e:
+            self.logger.error("Caught exception: %s" % e)
 
-            except Exception as e:
-                self.logger.error("Caught exception: %s" % e)
-
-            time.sleep(poll_time)
+        #time.sleep(poll_time)
