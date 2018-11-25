@@ -1,4 +1,4 @@
-import logging
+import logging, logging.handlers
 
 LOG_LEVEL = logging.DEBUG
 CONSOLE_LEVEL = logging.DEBUG
@@ -12,11 +12,19 @@ def init_logger(fullpath, console_level=CONSOLE_LEVEL, log_level=LOG_LEVEL):
         fullpath (str): full path to the log file
     """
     logging.basicConfig(level=LOG_LEVEL,
-                        format='%(asctime)s %(threadName)-10s %(name)-12s %(levelname)-8s %(message)s',
-                        datefmt='%m-%d-%y %H:%M:%S',
-                        filename=fullpath,
-                        filemode='w')
-
+                    format='%(asctime)s %(threadName)-10s %(name)-12s %(levelname)-8s %(message)s',
+                    datefmt='%m-%d-%y %H:%M:%S',
+                    filename=fullpath,
+                    filemode='w')
+                        
+    _logger = logging.getLogger('_root')
+    _logger.setLevel(log_level)
+    
+    log_handler = logging.handlers.RotatingFileHandler(filename=fullpath, 
+        maxBytes=50, backupCount=10)
+    log_handler.setLevel(log_level)
+    _logger.addHandler(log_handler)
+    
     # define a Handler which writes INFO messages or higher to the sys.stderr
     console = logging.StreamHandler()
     console.setLevel(console_level)
